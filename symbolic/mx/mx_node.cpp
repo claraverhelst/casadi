@@ -549,9 +549,17 @@ namespace CasADi{
   
     if (CasadiOptions::simplification_on_the_fly) {
     
-      // If identically zero due to one argumebt being zero
-      if((operation_checker<F0XChecker>(op) && isZero()) ||(operation_checker<FX0Checker>(op) && y->isZero())){
-        return MX::zeros(sparsity());
+      // Quick simplifications
+      /** 
+      * The size()==0 check is needed for ConstMX.
+      * isValue(1) may return true while size()==0, resulting in erroneous
+      * simplifications in the remainder of this method
+      */
+      if (operation_checker<F0XChecker>(op) && (numel()!=0 && size()==0 || isZero())) {
+         MX::zeros(sparsity());
+      }
+      if (operation_checker<FX0Checker>(op) && (y->numel()!=0 && y->size()==0 || y->isZero())) {
+         MX::zeros(y->sparsity());
       }
 
       // Handle special operations (independent of type)

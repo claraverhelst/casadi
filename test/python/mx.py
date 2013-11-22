@@ -95,7 +95,7 @@ class MXtests(casadiTestCase):
     self.pool.append(lambda x: arcsin(x[0]),arcsin,"arcsin")
     self.pool.append(lambda x: arccos(x[0]),arccos,"arccos")
     self.pool.append(lambda x: exp(x[0]),exp,"exp")
-    self.pool.append(lambda x: log(x[0]),log,"log")
+    self.pool.append(lambda x: log(x[0]),log,"log",flags={'nozero'})
     self.pool.append(lambda x: x[0]**0,lambda x : x**0,"x^0",flags={'nozero'})
     self.pool.append(lambda x: x[0]**1,lambda x : x**1,"^1")
     self.pool.append(lambda x: x[0]**(-2),lambda x : x**(-2),"^-2",flags={'nozero'})
@@ -124,8 +124,12 @@ class MXtests(casadiTestCase):
     self.matrixbinarypool.append(lambda a: a[0]+a[1],lambda a: a[0]+a[1],"Matrix+Matrix")
     self.matrixbinarypool.append(lambda a: a[0]-a[1],lambda a: a[0]-a[1],"Matrix-Matrix")
     self.matrixbinarypool.append(lambda a: a[0]*a[1],lambda a: a[0]*a[1],"Matrix*Matrix")
+    #self.matrixbinarypool.append(lambda a: a[0]**a[1],lambda a: a[0]**a[1],"Matrix**Matrix")
+    self.matrixbinarypool.append(lambda a: fmax(a[0],a[1]),lambda a: fmax(a[0],a[1]),"fmin")
+    self.matrixbinarypool.append(lambda a: fmin(a[0],a[1]),lambda a: fmin(a[0],a[1]),"fmax")
     #self.matrixbinarypool.append(lambda a: inner_mul(a[0],trans(a[1])),lambda a: dot(a[0].T,a[1]),name="inner_mul(Matrix,Matrix)") 
     self.matrixbinarypool.append(lambda a: mul(a[0],trans(a[1])),lambda a: dot(a[0],a[1].T),"mul(Matrix,Matrix.T)")
+    self.matrixbinarypool.append(lambda a: arctan2(a[0],a[1]),lambda a: arctan2(a[0],a[1]),"arctan2")
 
   def test_indirection(self):
     self.message("MXFunction indirection")
@@ -2308,14 +2312,13 @@ class MXtests(casadiTestCase):
             
             self.checkarray(f.output(),numpyop(x_))
 
-      for sp in  [sp_dense(1,1),sp_sparse(3,4),sp_dense(3,4), CRSSparsity(3,4,[1,2,1],[0,2,2,3])]:
+      for sp in  [sp_sparse(1,1),sp_dense(1,1),sp_sparse(3,4),sp_dense(3,4), CRSSparsity(3,4,[1,2,1],[0,2,2,3])]:
         for v1 in [0,1,0.2,-0.2]:
           x1_ = DMatrix(sp,v1)
           xx1 = msym("x",sp.size1(),sp.size2())
           x1=xx1[sp]
           
-          for sp2 in [sp_dense(1,1),sp_sparse(3,4),sp_dense(3,4), CRSSparsity(3,4,[1,2,1],[0,2,2,3])]:
-            if sp.size()==0 and sp2.size()==0: continue # bug
+          for sp2 in [sp_sparse(1,1),sp_dense(1,1),sp_sparse(3,4),sp_dense(3,4), CRSSparsity(3,4,[1,2,1],[0,2,2,3])]:
             for v2 in [0,1,0.2,-0.2]:
               x2_ = DMatrix(sp2,v2)
               xx2 = msym("x",sp2.size1(),sp2.size2())
@@ -2329,27 +2332,42 @@ class MXtests(casadiTestCase):
                 f.setInput(v2,1)
                 f.evaluate()
                 self.checkarray(f.output(),numpyop([x1_,x2_]),str([sp,sp2,v1,v2,x1_,x2_,name]))
-                
-      for sp in  [sp_dense(1,1),sp_sparse(1,1)]:
+
+  @memory_heavy()
+  def test_MXConstant(self):
+      self.message("MX unary operations, constant")
+      
+      #self.checkarray(DMatrix(sp_tril(4),1),DMatrix(sp_dense(4,4),1))
+      
+      for sp in [sp_dense(0,0),sp_dense(0,2),sp_dense(2,0),sp_dense(1,1),sp_dense(2,2), CRSSparsity(3,4,[1,2,1],[0,2,2,3])]:
+        for v in [0,1,0.2]:
+          x_ = DMatrix(sp,v)
+          
+          x=MX(sp,v)
+          
+          for (casadiop, numpyop,name, flags) in self.pool.zip():
+            if 'nozero' in flags and v==0: continue
+            r = casadiop([x])
+            print r
+            self.assertTrue(r.isConstant())
+            
+            self.checkarray(r.getMatrixValue(),numpyop(x_))
+        
+      for sp in  [sp_dense(1,1),sp_sparse(1,1),sp_sparse(3,4),sp_dense(3,4), CRSSparsity(3,4,[1,2,1],[0,2,2,3])]:
         for v1 in [0,1,0.2,-0.2]:
           x1_ = DMatrix(sp,v1)
-          xx1 = msym("x",sp.size1(),sp.size2())
-          x1=xx1[sp]
-          
-          for sp2 in [sp_dense(1,1),sp_sparse(1,1)]:
+          x1=MX(sp,v1)
+          for sp2 in [sp_dense(1,1),sp_sparse(1,1),sp_sparse(3,4),sp_dense(3,4), CRSSparsity(3,4,[1,2,1],[0,2,2,3])]:
             for v2 in [0,1,0.2,-0.2]:
               x2_ = DMatrix(sp2,v2)
-              xx2 = msym("x",sp2.size1(),sp2.size2())
-              x2=xx2[sp2]
+              x2=MX(sp2,v2)
               for (casadiop, numpyop,name, flags) in self.matrixbinarypool.zip():
                 if "mul" in name and (sp.numel()==1 or sp2.numel()==1): continue
                 r = casadiop([x1,x2])
-                f = MXFunction([xx1,xx2],[r])
+                f = MXFunction([],[r])   # Should not be needed -> constant folding
                 f.init()
-                f.setInput(v1,0)
-                f.setInput(v2,1)
                 f.evaluate()
-                self.checkarray(f.output(),numpyop([x1_,x2_]),str([sp,sp2,v1,v2,x1_,x2_,name]))
+                self.checkarray(f.output(),numpyop([x1_,x2_]),str([sp,sp2,v1,v2,name]))
                 
 if __name__ == '__main__':
     unittest.main()

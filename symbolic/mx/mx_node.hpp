@@ -299,7 +299,7 @@ namespace CasADi{
     
     /** \brief Matrix multiplication
     *  
-    *  The optinal argument sp_z will be used as the sparsity pattern of the result
+    *  The optional argument sp_z will be used as the sparsity pattern of the result
     */
     virtual MX getMultiplication(const MX& y, const CRSSparsity& sp_z=CRSSparsity()) const;
 

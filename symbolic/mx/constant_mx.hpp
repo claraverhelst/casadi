@@ -231,11 +231,27 @@ namespace CasADi{
     // Constant folding
     double ret;
     casadi_math<double>::fun(op,v_.value,0.0,ret);
-    return ret;
+    if (operation_checker<F0XChecker>(op) || sparsity().dense()) {
+      return MX(sparsity(),ret);
+    } else {
+      if (v_.value==0) {
+        return MX(size1(),size2(),ret);
+      }
+      double ret2;
+      casadi_math<double>::fun(op,0,0.0,ret2);
+      return DMatrix(sparsity(),ret)+DMatrix(sparsity().patternInverse(),ret2);
+    }
   }
 
   template<typename Value>
   MX Constant<Value>::getBinary(int op, const MX& y, bool ScX, bool ScY) const{
+   
+    if ((operation_checker<F0XChecker>(op) && size()==0) ||
+        (operation_checker<FX0Checker>(op) && y->size()==0)
+    ) {
+      return MX(size1(),size2());
+    }
+  
     switch(op){
     case OP_ADD:
       if(v_.value==0) return y;
@@ -261,11 +277,17 @@ namespace CasADi{
     }
 
     // Constant folding
-    if(y->getOp()==OP_CONST && dynamic_cast<const ConstantDMatrix*>(y.get())==0){ // NOTE: ugly, should use a function instead of a cast
-      double y_value = y->getValue();
+    if(y->getOp()==OP_CONST && dynamic_cast<const ConstantDMatrix*>(y.get())==0 && (sparsity()==y.sparsity() || ScX || ScY)){ // NOTE: ugly, should use a function instead of a cast
+      double y_value = y.size()>0 ? y->getValue() : 0;
       double ret;
-      casadi_math<double>::fun(op,v_.value,y_value,ret);
-      return MX(y.sparsity(),ret);
+      casadi_math<double>::fun(op,size()> 0 ? v_.value: 0,y_value,ret);
+
+      if (ScX || ScY) {
+        return ret;
+      } else {
+        // This is only valid when sparsities match
+        return MX(sparsity(),ret);
+      }
     }
 
     // Fallback
