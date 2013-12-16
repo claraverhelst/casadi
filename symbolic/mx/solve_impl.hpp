@@ -249,9 +249,9 @@ namespace CasADi{
           for(int k=A_rowind[i]; k<A_rowind[i+1]; ++k){ // loop over the nonzeros
             int j = A_col[k]; // get the column            
             if(Tr){
-              X_ptr[i] |= tmp_ptr[j];
-            } else {
               X_ptr[j] |= tmp_ptr[i];
+            } else {
+              X_ptr[i] |= tmp_ptr[j];
             }
           }
         }
@@ -263,14 +263,14 @@ namespace CasADi{
           for(int i=0; i<n; ++i){ // Loop over the rows of A
             for(int k=A_rowind[i]; k<A_rowind[i+1]; ++k){ // loop over the nonzeros
               int j = A_col[k]; // get the column
-              if(Tr){
-                no_change &= X_ptr[i] == tmp_ptr[i];
-                X_ptr[i] |= tmp_ptr[i];
-                tmp_ptr[i] |= X_ptr[i];
+              if(Tr){ // NOTE: Really correct?
+                no_change &= X_ptr[j] == tmp_ptr[i];
+                X_ptr[j] |= tmp_ptr[i];
+                tmp_ptr[i] |= X_ptr[j];
               } else {
-                no_change &= X_ptr[j] == tmp_ptr[j];
-                X_ptr[j] |= tmp_ptr[j];
-                tmp_ptr[j] |= X_ptr[j];
+                no_change &= X_ptr[i] == tmp_ptr[j];
+                X_ptr[i] |= tmp_ptr[j];
+                tmp_ptr[j] |= X_ptr[i];
               }
             }
           }
